@@ -1,11 +1,11 @@
-<script>
+<script lang="ts">
   import logo from './assets/images/logo-universal.png'
   import {Greet} from '../wailsjs/go/main/App.js'
 
-  let resultText = "Please enter your name below 👇"
-  let name
+  let resultText: string = "Please enter your name below 👇"
+  let name: string
 
-  function greet() {
+  function greet(): void {
     Greet(name).then(result => resultText = result)
   }
 </script>
