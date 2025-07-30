@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Handle, Position, type NodeProps } from '@xyflow/svelte';
-	import { axon } from '../proto/axon';
+	import { axon } from '../proto/axon.js';
 
 	// The `data` prop is passed automatically by SvelteFlow
 	export let data: { node: axon.Node };
