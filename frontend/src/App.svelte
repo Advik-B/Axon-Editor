@@ -1,82 +1,177 @@
 <script lang="ts">
-  import logo from './assets/images/logo-universal.png'
-  import {Greet} from '../wailsjs/go/main/App.js'
+	import { onMount } from 'svelte';
+	import AxonCanvas from './lib/components/AxonCanvas.svelte';
+	import { axonGraph, loadFromAxonGraph, updateAxonGraph } from './lib/store';
+	import { axon } from './lib/proto/axon';
 
-  let resultText: string = "Please enter your name below 👇"
-  let name: string
+	// --- Mock Backend & Data ---
+	// This simulates what we would get from the Wails backend.
+	let transpiledCode = '// Click "Transpile" to see Go code here';
 
-  function greet(): void {
-    Greet(name).then(result => resultText = result)
-  }
+	// Mock data for the 'add.ax' example
+	const mockAddGraph: axon.Graph = {
+		id: 'basic-addition-v2',
+		name: 'Add Numbers with Execution Flow',
+		imports: ['fmt'],
+		nodes: [
+			{ id: 'start', type: axon.NodeType.START, label: 'Start', inputs: [], outputs: [], impl_reference: '', config: new Map(), comment_ids: [] },
+			{ id: 'end', type: axon.NodeType.END, label: 'End', inputs: [], outputs: [], impl_reference: '', config: new Map(), comment_ids: [] },
+			{
+				id: 'const1',
+				type: axon.NodeType.CONSTANT,
+				label: 'x',
+				outputs: [{ name: 'out', type_name: 'int' }],
+				config: new Map([['value', '5']]),
+				inputs: [], impl_reference: '', comment_ids: []
+			},
+			{
+				id: 'const2',
+				type: axon.NodeType.CONSTANT,
+				label: 'y',
+				outputs: [{ name: 'out', type_name: 'int' }],
+				config: new Map([['value', '3']]),
+				inputs: [], impl_reference: '', comment_ids: []
+			},
+			{
+				id: 'sum',
+				type: axon.NodeType.OPERATOR,
+				label: 'z',
+				inputs: [
+					{ name: 'a', type_name: 'int' },
+					{ name: 'b', type_name: 'int' }
+				],
+				outputs: [{ name: 'out', type_name: 'int' }],
+				config: new Map([['op', '+']]),
+				impl_reference: '', comment_ids: []
+			},
+			{
+				id: 'printer',
+				type: axon.NodeType.FUNCTION,
+				label: 'PrintResult',
+				impl_reference: 'fmt.Println',
+				inputs: [{ name: 'a', type_name: 'int' }],
+				outputs: [], config: new Map(), comment_ids: []
+			}
+		],
+		data_edges: [
+			{ from_node_id: 'const1', from_port: 'out', to_node_id: 'sum', to_port: 'a' },
+			{ from_node_id: 'const2', from_port: 'out', to_node_id: 'sum', to_port: 'b' },
+			{ from_node_id: 'sum', from_port: 'out', to_node_id: 'printer', to_port: 'a' }
+		],
+		exec_edges: [
+			{ from_node_id: 'start', to_node_id: 'sum' },
+			{ from_node_id: 'sum', to_node_id: 'printer' },
+			{ from_node_id: 'printer', to_node_id: 'end' }
+		],
+		comments: []
+	};
+
+	// --- Component Logic ---
+	// On component mount, load our mock data into the stores
+	onMount(() => {
+		handleLoad();
+	});
+
+	function handleLoad() {
+		// In a real app, this would call a Wails function:
+		// const graph = await Wails.LoadGraphFromFile(...)
+		const graph = mockAddGraph;
+		loadFromAxonGraph(graph);
+		transpiledCode = '// Graph loaded. Click "Transpile" to generate code.';
+	}
+
+	async function handleSave() {
+		updateAxonGraph(); // Sync visual state to the axonGraph store
+		const graphToSave = $axonGraph;
+		console.log('Saving graph:', graphToSave);
+		// In a real app, this would call a Wails function:
+		// await Wails.SaveGraphToFile('path/to/file.ax', graphToSave);
+		alert('Graph saved to console! (See developer tools)');
+	}
+
+	async function handleTranspile() {
+		updateAxonGraph(); // Sync visual state first!
+		const graphToTranspile = $axonGraph;
+		console.log('Transpiling graph:', graphToTranspile);
+		// In a real app, this would call a Wails function:
+		// transpiledCode = await Wails.TranspileGraph(graphToTranspile);
+		transpiledCode = `package main\n\nimport (\n\t"fmt"\n)\n\nfunc main() {\n\tx := 5\n\ty := 3\n\tz := x + y\n\tfmt.Println(z)\n}\n`;
+	}
 </script>
 
-
 <main>
+	<div class="canvas-container">
+		<AxonCanvas />
+	</div>
 
-  <img alt="Wails logo" id="logo" src="{logo}">
-  <div class="result" id="result">{resultText}</div>
-  <div class="input-box" id="input">
-    <input autocomplete="off" bind:value={name} class="input" id="name" type="text"/>
-    <button class="btn" on:click={greet}>Greet</button>
-  </div>
-
+	<div class="sidebar">
+		<div class="controls">
+			<h3>Axon Editor</h3>
+			<button on:click={handleLoad}>Load Mock</button>
+			<button on:click={handleSave}>Save</button>
+			<button on:click={handleTranspile}>Transpile</button>
+		</div>
+		<div class="code-panel">
+			<h4>Generated Go Code</h4>
+			<pre>{transpiledCode}</pre>
+		</div>
+	</div>
 </main>
 
 <style>
-
-  #logo {
-    display: block;
-    width: 50%;
-    height: 50%;
-    margin: auto;
-    padding: 10% 0 0;
-    background-position: center;
-    background-repeat: no-repeat;
-    background-size: 100% 100%;
-    background-origin: content-box;
-  }
-
-  .result {
-    height: 20px;
-    line-height: 20px;
-    margin: 1.5rem auto;
-  }
-
-  .input-box .btn {
-    width: 60px;
-    height: 30px;
-    line-height: 30px;
-    border-radius: 3px;
-    border: none;
-    margin: 0 0 0 20px;
-    padding: 0 8px;
-    cursor: pointer;
-  }
-
-  .input-box .btn:hover {
-    background-image: linear-gradient(to top, #cfd9df 0%, #e2ebf0 100%);
-    color: #333333;
-  }
-
-  .input-box .input {
-    border: none;
-    border-radius: 3px;
-    outline: none;
-    height: 30px;
-    line-height: 30px;
-    padding: 0 10px;
-    background-color: rgba(240, 240, 240, 1);
-    -webkit-font-smoothing: antialiased;
-  }
-
-  .input-box .input:hover {
-    border: none;
-    background-color: rgba(255, 255, 255, 1);
-  }
-
-  .input-box .input:focus {
-    border: none;
-    background-color: rgba(255, 255, 255, 1);
-  }
-
+	:global(body) {
+		margin: 0;
+		font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
+			'Open Sans', 'Helvetica Neue', sans-serif;
+	}
+	main {
+		display: flex;
+		height: 100vh;
+	}
+	.canvas-container {
+		flex-grow: 1;
+	}
+	.sidebar {
+		width: 350px;
+		background-color: #1f2937;
+		color: #d1d5db;
+		display: flex;
+		flex-direction: column;
+		border-left: 1px solid #4b5563;
+	}
+	.controls {
+		padding: 1rem;
+		border-bottom: 1px solid #4b5563;
+	}
+	.controls h3 {
+		margin-top: 0;
+	}
+	.controls button {
+		background-color: #4f46e5;
+		color: white;
+		border: none;
+		padding: 8px 16px;
+		border-radius: 6px;
+		cursor: pointer;
+		margin-right: 8px;
+	}
+	.controls button:hover {
+		background-color: #4338ca;
+	}
+	.code-panel {
+		padding: 1rem;
+		flex-grow: 1;
+		overflow-y: auto;
+	}
+	.code-panel h4 {
+		margin-top: 0;
+	}
+	pre {
+		background-color: #111827;
+		padding: 1rem;
+		border-radius: 6px;
+		white-space: pre-wrap;
+		word-wrap: break-word;
+		font-size: 13px;
+	}
 </style>
