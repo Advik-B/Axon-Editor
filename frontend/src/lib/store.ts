@@ -1,14 +1,15 @@
 import { get, writable } from 'svelte/store';
-import { type Node as XYNode, type Edge as XYEdge, type OnConnect, type Connection } from '@xyflow/svelte';
-import { axon } from './proto/axon'; // Import generated TS types
+import { type Node as XYNode, type Edge as XYEdge } from '@xyflow/svelte';
+// The import is now correct based on your file structure.
+import { axon } from './proto/axon';
 
 // The main Svelte stores for xyflow's visual state
 export const nodes = writable<XYNode[]>([]);
 export const edges = writable<XYEdge[]>([]);
 
 // The raw Axon graph object, our single source of truth.
-// Correctly initialized with the create() factory method.
-export const axonGraph = writable<axon.Graph>(axon.Graph.create());
+// This is the correct way to initialize it using the 'new' constructor.
+export const axonGraph = writable<axon.Graph>(new axon.Graph());
 
 /**
  * Converts an Axon Graph (from Protobuf) into nodes and edges for xyflow.
@@ -17,17 +18,13 @@ export const axonGraph = writable<axon.Graph>(axon.Graph.create());
  */
 export function loadFromAxonGraph(graph: axon.Graph) {
 	const xyNodes: XYNode[] = graph.nodes.map((axonNode: axon.Node) => {
-		// Find or create visual info, defaulting to (0,0)
 		const position = axonNode.visual_info ?? { x: 0, y: 0 };
 
 		return {
 			id: axonNode.id,
-			type: 'custom', // We'll use a single custom node component
+			type: 'custom',
 			position: { x: position.x, y: position.y },
-			data: {
-				// Pass the raw Axon node data directly to our Svelte component
-				node: axonNode
-			}
+			data: { node: axonNode }
 		};
 	});
 
@@ -38,7 +35,7 @@ export function loadFromAxonGraph(graph: axon.Graph) {
 		sourceHandle: edge.from_port,
 		targetHandle: edge.to_port,
 		type: 'default',
-		style: 'stroke: #00b4d4; stroke-width: 2;', // Data Edge Color
+		style: 'stroke: #00b4d4; stroke-width: 2;',
 		animated: false
 	}));
 
@@ -46,10 +43,10 @@ export function loadFromAxonGraph(graph: axon.Graph) {
 		id: `exec-${edge.from_node_id}-${edge.to_node_id}`,
 		source: edge.from_node_id,
 		target: edge.to_node_id,
-		sourceHandle: 'exec_out', // Standardized handle IDs
+		sourceHandle: 'exec_out',
 		targetHandle: 'exec_in',
 		type: 'default',
-		style: 'stroke: #fff; stroke-width: 2.5;', // Exec Edge Color
+		style: 'stroke: #fff; stroke-width: 2.5;',
 		animated: true
 	}));
 
@@ -67,8 +64,8 @@ export function updateAxonGraph() {
 	const currentEdges = get(edges);
 	const currentGraph = get(axonGraph);
 
-	// Create a new graph object to avoid mutation issues.
-	const newGraph = axon.Graph.clone(currentGraph);
+	// To "clone", we convert the current graph to a plain object and create a new instance from it.
+	const newGraph = axon.Graph.fromObject(currentGraph.toObject());
 
 	// 1. Update node positions from xyflow state
 	const nodeMap = new Map<string, axon.Node>();
@@ -78,7 +75,8 @@ export function updateAxonGraph() {
 		const axonNode = nodeMap.get(xyNode.id);
 		if (axonNode) {
 			if (!axonNode.visual_info) {
-				axonNode.visual_info = { x: 0, y: 0, width: 0, height: 0 };
+				// Create the optional sub-message using the 'new' constructor.
+				axonNode.visual_info = new axon.VisualInfo();
 			}
 			axonNode.visual_info.x = xyNode.position.x;
 			axonNode.visual_info.y = xyNode.position.y;
@@ -92,17 +90,18 @@ export function updateAxonGraph() {
 	for (const edge of currentEdges) {
 		if (!edge.source || !edge.target || !edge.sourceHandle || !edge.targetHandle) continue;
 
-		if (edge.sourceHandle === 'exec_out') {
+		if (edge.sourceHandle === 'exec_out' && edge.targetHandle === 'exec_in') {
 			// This is an Execution Edge
 			newGraph.exec_edges.push(
-				axon.ExecEdge{
+				new axon.ExecEdge({
 					from_node_id: edge.source,
 					to_node_id: edge.target
-				});
+				})
+			);
 		} else {
 			// This is a Data Edge
 			newGraph.data_edges.push(
-				axon.DataEdge.create({
+				new axon.DataEdge({
 					from_node_id: edge.source,
 					from_port: edge.sourceHandle,
 					to_node_id: edge.target,
