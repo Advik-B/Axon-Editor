@@ -6,7 +6,7 @@
     "module": "ESNext",
     "resolveJsonModule": true,
     "baseUrl": ".",
-    "moduleResolution": "bundler", // <-- THE KEY FIX for module resolution
+    "moduleResolution": "nodenext", // <-- THE KEY FIX for module resolution
 
     /**
      * Typecheck JS in `.svelte` and `.js` files by default.
