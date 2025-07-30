@@ -1,9 +1,16 @@
 <script lang="ts">
   import logo from './assets/images/logo-universal.png'
-  import {Greet} from '../wailsjs/go/main/App.js'
 
   let resultText: string = "Please enter your name below 👇"
   let name: string
+
+  function Greet(name: string): Promise<string> {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve(`Hello, ${name}! Welcome to Axon Editor!`);
+      }, 1000);
+    });
+  }
 
   function greet(): void {
     Greet(name).then(result => resultText = result)

@@ -7,19 +7,15 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "svelte-check --tsconfig ./tsconfig.json"
+    "check": "echo 'No type checking in frontend, use `pnpm check` in the root directory instead.'"
   },
   "devDependencies": {
-    "@sveltejs/vite-plugin-svelte": "^1.0.1",
+    "@sveltejs/vite-plugin-svelte": "^6.1.0",
     "@tsconfig/svelte": "^3.0.0",
-    "google-protobuf": "^3.21.4",
-    "protoc-gen-js": "^3.21.4-4",
-    "protoc-gen-ts": "^0.8.7",
-    "svelte": "^3.49.0",
-    "svelte-check": "^2.8.0",
-    "svelte-preprocess": "^4.10.7",
+    "svelte": "^5.37.1",
+    "svelte-preprocess": "^5.0.0",
     "tslib": "^2.4.0",
     "typescript": "^4.6.4",
-    "vite": "^3.0.7"
+    "vite": "^7.0.6"
   }
 }
