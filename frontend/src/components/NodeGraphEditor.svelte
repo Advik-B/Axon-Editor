@@ -8,10 +8,14 @@
   import FunctionNode from './nodes/FunctionNode.svelte';
   import Console from './Console.svelte';
   import CodePreview from './CodePreview.svelte';
+  import PropertiesPanel from './PropertiesPanel.svelte';
+  import KeyboardShortcuts from './KeyboardShortcuts.svelte';
   
   // Console and Code Preview refs
   let consoleRef;
   let codePreviewRef;
+  let propertiesPanelRef;
+  let keyboardShortcutsRef;
   
   // Dynamic import of Wails functions
   let wailsAvailable = false;
@@ -208,6 +212,65 @@
   // Handle node drag
   function onNodeDragStop(event) {
     // Position updates are handled automatically by Svelte Flow
+  }
+  
+  // Handle node selection
+  function onNodeClick(event) {
+    if (event.detail && event.detail.node) {
+      const node = event.detail.node;
+      propertiesPanelRef?.setNode(node);
+      consoleRef?.addMessage(`Selected node: ${node.data.label} (${node.data.type})`, 'info');
+    }
+  }
+  
+  // Keyboard shortcuts handler
+  function handleKeyDown(event) {
+    // Ctrl+S - Save
+    if (event.ctrlKey && event.key === 's') {
+      event.preventDefault();
+      handleSave();
+    }
+    // Ctrl+O - Open
+    else if (event.ctrlKey && event.key === 'o') {
+      event.preventDefault();
+      handleOpen();
+    }
+    // Ctrl+N - New
+    else if (event.ctrlKey && event.key === 'n') {
+      event.preventDefault();
+      handleNew();
+    }
+    // F5 - Build
+    else if (event.key === 'F5' && !event.ctrlKey) {
+      event.preventDefault();
+      handleBuild();
+    }
+    // Ctrl+F5 - Run
+    else if (event.ctrlKey && event.key === 'F5') {
+      event.preventDefault();
+      handleRun();
+    }
+    // F7 - Validate
+    else if (event.key === 'F7') {
+      event.preventDefault();
+      validateCurrentGraph();
+    }
+    // Ctrl+P - Preview code
+    else if (event.ctrlKey && event.key === 'p') {
+      event.preventDefault();
+      handlePreviewCode();
+    }
+    // F1 - Show help
+    else if (event.key === 'F1') {
+      event.preventDefault();
+      keyboardShortcutsRef?.show();
+    }
+    // Esc - Close dialogs
+    else if (event.key === 'Escape') {
+      codePreviewRef?.hide();
+      keyboardShortcutsRef?.hide();
+      propertiesPanelRef?.hide();
+    }
   }
 
   // Open file
@@ -434,7 +497,7 @@
   handleNew();
 </script>
 
-<div class="graph-container">
+<div class="graph-container" onkeydown={handleKeyDown} tabindex="0">
   <div class="toolbar">
     <div class="toolbar-left">
       <h1>Axon Editor</h1>
@@ -451,6 +514,9 @@
       <button onclick={handleRun}>▶️ Run</button>
     </div>
     <div class="toolbar-right">
+      <button onclick={() => keyboardShortcutsRef?.show()} class="help-btn" title="Keyboard Shortcuts (F1)">
+        ⌨️
+      </button>
       <div class="dropdown">
         <button class="dropdown-btn">Add Node ▼</button>
         <div class="dropdown-content">
@@ -470,6 +536,7 @@
       {snapGrid}
       onconnect={onConnect}
       onnodedragstop={onNodeDragStop}
+      onnodeclick={onNodeClick}
       fitView
     >
       <Controls />
@@ -510,6 +577,12 @@
 <!-- Code Preview Component -->
 <CodePreview bind:this={codePreviewRef} />
 
+<!-- Properties Panel Component -->
+<PropertiesPanel bind:this={propertiesPanelRef} />
+
+<!-- Keyboard Shortcuts Help -->
+<KeyboardShortcuts bind:this={keyboardShortcutsRef} />
+
 <style>
   .graph-container {
     width: 100%;
@@ -517,6 +590,11 @@
     display: flex;
     flex-direction: column;
     background: #0d0d0d;
+    outline: none; /* Remove focus outline */
+  }
+  
+  .graph-container:focus {
+    outline: none;
   }
 
   .toolbar {
@@ -634,6 +712,18 @@
 
   .dropdown:hover .dropdown-content {
     display: block;
+  }
+  
+  .help-btn {
+    padding: 0.5rem;
+    width: 38px;
+    background: linear-gradient(to bottom, #7f5f2d 0%, #5f4f1d 100%);
+    border-color: #9f7f3d;
+  }
+  
+  .help-btn:hover {
+    background: linear-gradient(to bottom, #8f6f3d 0%, #6f5f2d 100%);
+    border-color: #af8f4d;
   }
 
   .flow-wrapper {
