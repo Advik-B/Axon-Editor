@@ -20,13 +20,6 @@
       { keys: ['Ctrl', 'O'], description: 'Open graph' },
       { keys: ['Ctrl', 'S'], description: 'Save graph' },
     ]},
-    { category: 'Edit', items: [
-      { keys: ['Ctrl', 'Z'], description: 'Undo (coming soon)' },
-      { keys: ['Ctrl', 'Y'], description: 'Redo (coming soon)' },
-      { keys: ['Ctrl', 'C'], description: 'Copy (coming soon)' },
-      { keys: ['Ctrl', 'V'], description: 'Paste (coming soon)' },
-      { keys: ['Delete'], description: 'Delete selected node (coming soon)' },
-    ]},
     { category: 'Build & Run', items: [
       { keys: ['F5'], description: 'Build graph' },
       { keys: ['Ctrl', 'F5'], description: 'Run graph' },

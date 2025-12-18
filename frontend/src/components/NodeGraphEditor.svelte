@@ -231,9 +231,21 @@
     consoleRef?.addMessage('Connection created successfully', 'info');
   }
 
-  // Handle node drag
+  // Handle node drag - update positions in nodes array
   function onNodeDragStop(event) {
-    // Position updates are handled automatically by Svelte Flow
+    // Update node positions after drag
+    if (event.detail && event.detail.node) {
+      const draggedNode = event.detail.node;
+      nodes = nodes.map(n => {
+        if (n.id === draggedNode.id) {
+          return {
+            ...n,
+            position: draggedNode.position
+          };
+        }
+        return n;
+      });
+    }
   }
   
   // Handle node selection
@@ -410,9 +422,6 @@
     } catch (err) {
       console.error('Build failed:', err);
       consoleRef?.addMessage('Build failed: ' + err.message, 'error');
-      if (err.message.includes('Axon CLI not found')) {
-        consoleRef?.addMessage('Install Axon CLI: go install github.com/Advik-B/Axon@latest', 'info');
-      }
     }
   }
   
@@ -470,7 +479,12 @@
   
   // Context menu handlers
   function handlePaneContextMenu(event) {
-    event.preventDefault();
+    const e = event.detail?.event || event;
+    if (e.preventDefault) e.preventDefault();
+    
+    const clientX = e.clientX || 0;
+    const clientY = e.clientY || 0;
+    
     const menuItems = [
       { icon: '➕', label: 'Add Constant', action: () => handleAddNode('CONSTANT') },
       { icon: '⚙️', label: 'Add Function', action: () => handleAddNode('FUNCTION') },
@@ -484,15 +498,21 @@
       { icon: '🔨', label: 'Build', action: handleBuild, shortcut: 'F5' },
       { icon: '▶️', label: 'Run', action: handleRun, shortcut: 'Ctrl+F5' },
     ];
-    contextMenuRef?.show(event.detail.event.clientX, event.detail.event.clientY, menuItems);
+    contextMenuRef?.show(clientX, clientY, menuItems);
   }
   
   function handleNodeContextMenu(event) {
-    event.preventDefault();
-    const node = event.detail.node;
+    const e = event.detail?.event || event;
+    if (e.preventDefault) e.preventDefault();
+    
+    const node = event.detail?.node || event.node;
+    if (!node) return;
+    
+    const clientX = e.clientX || 0;
+    const clientY = e.clientY || 0;
     
     // Don't allow deleting START or END nodes
-    const canDelete = node.data.type !== 'START' && node.data.type !== 'END';
+    const canDelete = node.data?.type !== 'START' && node.data?.type !== 'END';
     
     const menuItems = [
       { icon: '⚙️', label: 'Properties', action: (n) => propertiesPanelRef?.setNode(n) },
@@ -500,7 +520,7 @@
       { separator: true },
       { icon: '🗑️', label: 'Delete', action: (n) => deleteNode(n), danger: true, disabled: !canDelete },
     ];
-    contextMenuRef?.show(event.detail.event.clientX, event.detail.event.clientY, menuItems, { node });
+    contextMenuRef?.show(clientX, clientY, menuItems, { node });
   }
   
   function duplicateNode(node) {
