@@ -4,17 +4,17 @@ The official visual node graph IDE for [Axon](https://github.com/Advik-B/Axon) -
 
 ## Overview
 
-Axon Editor is a full-featured desktop IDE built with Wails (Go + Web) and Svelte 5 that provides a comprehensive development environment for creating and editing Axon visual programs. It features LSP integration with gopls, integrated console, code preview, real-time validation, and direct integration with the Axon CLI transpiler. Design complex programs using a node-based workflow and save them as `.ax` files that can be transpiled to Go code.
+Axon Editor is a **production-ready desktop IDE** built with Wails (Go + Web) and Svelte 5 that provides a comprehensive development environment for creating and editing Axon visual programs. It features complete LSP integration with gopls using JSON-RPC 2.0, Monaco Editor for professional code viewing, integrated console, real-time validation, and direct integration with the Axon CLI transpiler. Design complex programs using a node-based workflow and save them as `.ax` files that can be transpiled to Go code.
 
 ## Features
 
 ### Core IDE Features
 
 - **🎯 Visual Node Editor**: Intuitive drag-and-drop interface for creating Axon programs
-- **📝 LSP Integration**: Language Server Protocol support with gopls for Go code intelligence
+- **📝 Complete LSP Integration**: Full JSON-RPC 2.0 protocol with gopls for Go code intelligence
 - **🔍 Real-time Validation**: Instant feedback on graph structure, type mismatches, and errors
 - **💻 Integrated Console**: Built-in console for build output, errors, and execution results
-- **👁️ Code Preview**: Real-time Go code preview with syntax highlighting
+- **👁️ Monaco Editor**: VS Code-quality code preview with professional syntax highlighting
 - **🔨 Build & Run**: Direct integration with Axon CLI for transpilation and execution
 - **⚙️ Properties Panel**: Edit node properties, ports, and configuration on-the-fly
 - **⌨️ Keyboard Shortcuts**: Comprehensive keyboard shortcuts for efficient workflow
@@ -47,10 +47,12 @@ Support for all Axon node types:
 - **Validation**: Real-time graph validation with detailed diagnostics
 - **Build System**: Transpile to Go and compile with error reporting
 - **Execution**: Run generated programs and view output in console
-- **Code Generation**: Uses actual Axon CLI transpiler (with fallback)
-- **gopls Integration**: Go language server for code intelligence
-- **Syntax Highlighting**: Color-coded Go code preview
+- **Code Generation**: Uses actual Axon CLI transpiler
+- **Full LSP Protocol**: Complete JSON-RPC 2.0 implementation with gopls
+- **Monaco Editor**: Professional code editor from VS Code
+- **Type Intelligence**: Complete Go type compatibility checking
 - **Message Filtering**: Filter console by errors, warnings, info, and output
+- **Download/Copy**: Export generated code directly from Monaco Editor
 
 ### User Interface
 
@@ -80,9 +82,36 @@ Support for all Axon node types:
 - **Frontend**: Svelte 5 + Svelte-Flow + Vite
 - **Backend**: Go (via Wails v2.11.0)
 - **Node Graph**: @xyflow/svelte
+- **Code Editor**: Monaco Editor (VS Code)
 - **Desktop Framework**: Wails
-- **LSP**: gopls integration for Go code intelligence
+- **LSP**: Complete JSON-RPC 2.0 implementation with gopls
 - **Transpiler**: Axon CLI integration
+
+## What Makes This IDE Special
+
+### Monaco Editor Integration
+- **Professional Code Viewing**: The same editor that powers VS Code
+- **Syntax Highlighting**: Industry-standard Go language support
+- **Code Navigation**: Line numbers, minimap, code folding
+- **Bracket Colorization**: Enhanced readability with matching bracket colors
+- **Sticky Scroll**: Keep context visible while scrolling
+- **Download & Copy**: Export generated code with one click
+
+### Complete LSP Implementation
+- **JSON-RPC 2.0 Protocol**: Full bidirectional communication with gopls
+- **Real-time Analysis**: Document synchronization with gopls
+- **Type Information**: Hover support for detailed type info
+- **Message Handling**: Proper request/response correlation
+- **Error Handling**: Robust error recovery and reporting
+- **Clean Shutdown**: Proper resource cleanup and process management
+
+### Advanced Type System
+- **Numeric Types**: Complete compatibility for int, uint, float variants
+- **Pointer Types**: Recursive validation of pointer base types
+- **Slice Types**: Element type compatibility checking
+- **Container Types**: Map and channel validation
+- **Special Cases**: []byte ↔ string, error interface, any/interface{}
+- **No Fallbacks**: Every type combination explicitly handled
 
 ## Prerequisites
 
