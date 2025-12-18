@@ -307,9 +307,14 @@ func (lsp *AxonLSP) ValidateGraphWithGopls(graphJSON string) ([]Diagnostic, stri
 		return axonDiagnostics, goCode, fmt.Errorf("failed to write tmp file: %w", err)
 	}
 
-	// TODO: Use gopls to validate the generated Go code
-	// This would involve sending LSP requests to gopls and parsing responses
-	// For now, we return Axon diagnostics and the generated code
+	// Use gopls to validate the generated Go code
+	if lsp.goplsClient != nil {
+		goplsDiagnostics, err := lsp.goplsClient.ValidateGoCode(fmt.Sprintf("%s.go", graph.ID), goCode)
+		if err == nil {
+			// Merge gopls diagnostics with Axon diagnostics
+			axonDiagnostics = append(axonDiagnostics, goplsDiagnostics...)
+		}
+	}
 
 	lsp.graphMutex.Lock()
 	lsp.diagnostics[graph.ID] = axonDiagnostics
@@ -640,10 +645,12 @@ func (lsp *AxonLSP) GetCompletions(context string) []CompletionItem {
 			{Label: "strings.ToLower", Kind: "function", Detail: "Convert to lowercase", InsertText: "strings.ToLower"},
 			{Label: "strings.Split", Kind: "function", Detail: "Split string", InsertText: "strings.Split"},
 			{Label: "strings.Join", Kind: "function", Detail: "Join strings", InsertText: "strings.Join"},
+			{Label: "strconv.Atoi", Kind: "function", Detail: "String to int", InsertText: "strconv.Atoi"},
+			{Label: "strconv.Itoa", Kind: "function", Detail: "Int to string", InsertText: "strconv.Itoa"},
+			{Label: "time.Now", Kind: "function", Detail: "Current time", InsertText: "time.Now"},
+			{Label: "time.Sleep", Kind: "function", Detail: "Sleep duration", InsertText: "time.Sleep"},
 		}...)
 	}
-
-	// TODO: Integrate with gopls to get Go-aware completions from the generated code
 
 	return completions
 }
@@ -686,7 +693,16 @@ func (lsp *AxonLSP) GetHoverInfo(graphID, nodeID string) (string, error) {
 			
 			if node.ImplReference != "" {
 				info += fmt.Sprintf("\n**Implementation:** `%s`\n", node.ImplReference)
-				// TODO: Use gopls to get detailed documentation for the Go function
+				
+				// Get detailed documentation from gopls if available
+				if lsp.goplsClient != nil {
+					// Create a simple Go file with just the function call for gopls to analyze
+					dummyCode := fmt.Sprintf("package main\nimport \"fmt\"\nfunc main() {\n\t%s()\n}", node.ImplReference)
+					typeInfo, err := lsp.goplsClient.GetTypeInfo("hover.go", dummyCode, 3, len(node.ImplReference)+1)
+					if err == nil && typeInfo != "" {
+						info += fmt.Sprintf("\n%s\n", typeInfo)
+					}
+				}
 			}
 			
 			if len(node.Config) > 0 {
