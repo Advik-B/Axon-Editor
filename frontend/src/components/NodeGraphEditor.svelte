@@ -200,6 +200,10 @@
 
   // Open file
   async function handleOpen() {
+    if (!wailsAvailable || !OpenFile) {
+      alert('File operations are not available. Please run in Wails desktop mode.');
+      return;
+    }
     try {
       const jsonData = await OpenFile();
       const axonGraph = JSON.parse(jsonData);
@@ -212,6 +216,10 @@
 
   // Save file
   async function handleSave() {
+    if (!wailsAvailable || !SaveFile) {
+      alert('File operations are not available. Please run in Wails desktop mode.');
+      return;
+    }
     try {
       const axonGraph = flowToAxon(nodes, edges);
       const jsonData = JSON.stringify(axonGraph, null, 2);
