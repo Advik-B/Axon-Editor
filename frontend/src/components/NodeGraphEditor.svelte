@@ -10,12 +10,14 @@
   import CodePreview from './CodePreview.svelte';
   import PropertiesPanel from './PropertiesPanel.svelte';
   import KeyboardShortcuts from './KeyboardShortcuts.svelte';
+  import ContextMenu from './ContextMenu.svelte';
   
   // Console and Code Preview refs
   let consoleRef;
   let codePreviewRef;
   let propertiesPanelRef;
   let keyboardShortcutsRef;
+  let contextMenuRef;
   
   // Dynamic import of Wails functions
   let wailsAvailable = false;
@@ -188,7 +190,26 @@
 
   // Handle new connections
   function onConnect(connection) {
+    // Validation 1: Node cannot connect to itself
+    if (connection.source === connection.target) {
+      consoleRef?.addMessage('Error: A node cannot connect to itself', 'error');
+      return;
+    }
+    
     const isExecEdge = connection.sourceHandle?.includes('exec') || connection.targetHandle?.includes('exec');
+    
+    // Validation 2: For exec connections, right exec must connect to left exec of ANOTHER node
+    if (isExecEdge) {
+      // Source handle should be 'exec' or 'exec-out' (right side)
+      // Target handle should be 'exec' or 'exec-in' (left side)
+      const isSourceRight = connection.sourceHandle === 'exec' || connection.sourceHandle === 'exec-out';
+      const isTargetLeft = connection.targetHandle === 'exec' || connection.targetHandle === 'exec-in';
+      
+      if (!isSourceRight || !isTargetLeft) {
+        consoleRef?.addMessage('Error: Execution flow must go from right exec connector to left exec connector of another node', 'error');
+        return;
+      }
+    }
     
     const newEdge = {
       id: isExecEdge 
@@ -207,6 +228,7 @@
       },
     };
     edges = [...edges, newEdge];
+    consoleRef?.addMessage('Connection created successfully', 'info');
   }
 
   // Handle node drag
@@ -445,6 +467,70 @@
     };
     axonToFlow(newGraph);
   }
+  
+  // Context menu handlers
+  function handlePaneContextMenu(event) {
+    event.preventDefault();
+    const menuItems = [
+      { icon: '➕', label: 'Add Constant', action: () => handleAddNode('CONSTANT') },
+      { icon: '⚙️', label: 'Add Function', action: () => handleAddNode('FUNCTION') },
+      { icon: '🔢', label: 'Add Operator', action: () => handleAddNode('OPERATOR') },
+      { separator: true },
+      { icon: '📄', label: 'New Graph', action: handleNew, shortcut: 'Ctrl+N' },
+      { icon: '📁', label: 'Open', action: handleOpen, shortcut: 'Ctrl+O' },
+      { icon: '💾', label: 'Save', action: handleSave, shortcut: 'Ctrl+S' },
+      { separator: true },
+      { icon: '✓', label: 'Validate', action: validateCurrentGraph, shortcut: 'F7' },
+      { icon: '🔨', label: 'Build', action: handleBuild, shortcut: 'F5' },
+      { icon: '▶️', label: 'Run', action: handleRun, shortcut: 'Ctrl+F5' },
+    ];
+    contextMenuRef?.show(event.detail.event.clientX, event.detail.event.clientY, menuItems);
+  }
+  
+  function handleNodeContextMenu(event) {
+    event.preventDefault();
+    const node = event.detail.node;
+    
+    // Don't allow deleting START or END nodes
+    const canDelete = node.data.type !== 'START' && node.data.type !== 'END';
+    
+    const menuItems = [
+      { icon: '⚙️', label: 'Properties', action: (n) => propertiesPanelRef?.setNode(n) },
+      { icon: '📋', label: 'Duplicate', action: (n) => duplicateNode(n) },
+      { separator: true },
+      { icon: '🗑️', label: 'Delete', action: (n) => deleteNode(n), danger: true, disabled: !canDelete },
+    ];
+    contextMenuRef?.show(event.detail.event.clientX, event.detail.event.clientY, menuItems, { node });
+  }
+  
+  function duplicateNode(node) {
+    if (!node) return;
+    const newNodeId = `node-${Date.now()}`;
+    const newNode = {
+      ...node,
+      id: newNodeId,
+      position: { x: node.position.x + 50, y: node.position.y + 50 },
+      data: { ...node.data }
+    };
+    nodes = [...nodes, newNode];
+    consoleRef?.addMessage(`Node duplicated: ${node.data.label}`, 'info');
+  }
+  
+  function deleteNode(node) {
+    if (!node) return;
+    if (node.data.type === 'START' || node.data.type === 'END') {
+      consoleRef?.addMessage('Cannot delete START or END nodes', 'error');
+      return;
+    }
+    
+    // Remove node
+    nodes = nodes.filter(n => n.id !== node.id);
+    
+    // Remove connected edges
+    edges = edges.filter(e => e.source !== node.id && e.target !== node.id);
+    
+    consoleRef?.addMessage(`Node deleted: ${node.data.label}`, 'info');
+  }
 
   // Add node
   let nextNodePosition = { x: 350, y: 200 };
@@ -537,6 +623,8 @@
       onconnect={onConnect}
       onnodedragstop={onNodeDragStop}
       onnodeclick={onNodeClick}
+      onnodecontextmenu={handleNodeContextMenu}
+      onpanecontextmenu={handlePaneContextMenu}
       fitView
     >
       <Controls />
@@ -582,6 +670,9 @@
 
 <!-- Keyboard Shortcuts Help -->
 <KeyboardShortcuts bind:this={keyboardShortcutsRef} />
+
+<!-- Context Menu -->
+<ContextMenu bind:this={contextMenuRef} />
 
 <style>
   .graph-container {
