@@ -143,7 +143,7 @@ func (a *App) SaveFile(graphJSON string) error {
 		return fmt.Errorf("failed to format JSON: %w", err)
 	}
 
-	if err := os.WriteFile(filePath, prettyJSON, 0644); err != nil {
+	if err := os.WriteFile(filePath, prettyJSON, 0600); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 

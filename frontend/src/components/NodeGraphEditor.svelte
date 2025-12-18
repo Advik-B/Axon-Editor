@@ -1,5 +1,5 @@
 <script>
-  import { writable } from 'svelte/store';
+  import { writable, get } from 'svelte/store';
   import { SvelteFlow, Controls, Background, MiniMap, MarkerType } from '@xyflow/svelte';
   import '@xyflow/svelte/dist/style.css';
   import { OpenFile, SaveFile } from '../../wailsjs/go/main/App.js';
@@ -38,21 +38,37 @@
     currentGraph = axonGraph;
     fileName = axonGraph.name || 'Untitled';
     
-    const flowNodes = axonGraph.nodes.map(node => ({
-      id: node.id,
-      type: node.type,
-      data: {
-        label: node.label,
+    // Track node count for grid positioning
+    let nodeIndex = 0;
+    const gridSpacing = 250;
+    const gridColumns = 3;
+    
+    const flowNodes = axonGraph.nodes.map(node => {
+      let position;
+      if (node.visual_info) {
+        position = { x: node.visual_info.x, y: node.visual_info.y };
+      } else {
+        // Use grid-based positioning for nodes without visual info
+        const col = nodeIndex % gridColumns;
+        const row = Math.floor(nodeIndex / gridColumns);
+        position = { x: 200 + col * gridSpacing, y: 100 + row * gridSpacing };
+        nodeIndex++;
+      }
+      
+      return {
+        id: node.id,
         type: node.type,
-        inputs: node.inputs || [],
-        outputs: node.outputs || [],
-        impl_reference: node.impl_reference,
-        config: node.config || {}
-      },
-      position: node.visual_info 
-        ? { x: node.visual_info.x, y: node.visual_info.y }
-        : { x: Math.random() * 400, y: Math.random() * 400 }
-    }));
+        data: {
+          label: node.label,
+          type: node.type,
+          inputs: node.inputs || [],
+          outputs: node.outputs || [],
+          impl_reference: node.impl_reference,
+          config: node.config || {}
+        },
+        position
+      };
+    });
 
     const dataEdges = (axonGraph.data_edges || []).map((edge, i) => ({
       id: `data-${edge.from_node_id}-${edge.from_port}-${edge.to_node_id}-${edge.to_port}`,
@@ -185,9 +201,8 @@
   // Save file
   async function handleSave() {
     try {
-      let currentNodes, currentEdges;
-      nodes.subscribe(n => currentNodes = n)();
-      edges.subscribe(e => currentEdges = e)();
+      const currentNodes = get(nodes);
+      const currentEdges = get(edges);
       
       const axonGraph = flowToAxon(currentNodes, currentEdges);
       const jsonData = JSON.stringify(axonGraph, null, 2);
@@ -225,6 +240,9 @@
   }
 
   // Add node
+  let nextNodePosition = { x: 350, y: 200 };
+  const nodeSpacing = 250;
+  
   function handleAddNode(nodeType) {
     nodes.update((nds) => {
       const newNodeId = `node-${Date.now()}`;
@@ -235,8 +253,16 @@
           label: nodeType,
           type: nodeType,
         },
-        position: { x: Math.random() * 400 + 200, y: Math.random() * 300 + 100 }
+        position: { ...nextNodePosition }
       };
+      
+      // Move position for next node in a cascading pattern
+      nextNodePosition.x += 50;
+      nextNodePosition.y += 50;
+      if (nextNodePosition.x > 800) {
+        nextNodePosition.x = 350;
+        nextNodePosition.y += nodeSpacing;
+      }
 
       switch (nodeType) {
         case 'CONSTANT':
