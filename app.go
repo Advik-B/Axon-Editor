@@ -271,8 +271,14 @@ func (a *App) BuildGraph(graphJSON string) (string, error) {
 		outDir = buildDir
 	}
 	
+	// Determine executable name based on platform
+	execName := "executable"
+	if filepath.Ext(execName) == "" && os.Getenv("GOOS") == "windows" {
+		execName += ".exe"
+	}
+	
 	// Compile with Go
-	goCmd := exec.CommandContext(a.ctx, "go", "build", "-o", "executable", "./...")
+	goCmd := exec.CommandContext(a.ctx, "go", "build", "-o", execName, "./...")
 	goCmd.Dir = outDir
 	goBuildOutput, err := goCmd.CombinedOutput()
 	
@@ -305,8 +311,14 @@ func (a *App) RunGraph(graphJSON string) (string, error) {
 		outDir = buildDir
 	}
 	
+	// Determine executable name
+	execName := "executable"
+	if filepath.Ext(execName) == "" && os.Getenv("GOOS") == "windows" {
+		execName += ".exe"
+	}
+	
 	// Run the built executable
-	cmd := exec.CommandContext(a.ctx, filepath.Join(outDir, "executable"))
+	cmd := exec.CommandContext(a.ctx, filepath.Join(outDir, execName))
 	cmd.Dir = outDir
 	output, err := cmd.CombinedOutput()
 	

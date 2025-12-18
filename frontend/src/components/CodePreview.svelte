@@ -51,7 +51,7 @@
     // Strings
     highlighted = highlighted.replace(
       /"([^"\\]|\\.)*"/g,
-      '<span class="string">"$1"</span>'
+      '<span class="string">$&</span>'
     );
     
     // Comments

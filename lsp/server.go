@@ -109,17 +109,19 @@ func NewGoplsClient(ctx context.Context, workDir string) (*GoplsClient, error) {
 	cmd := exec.CommandContext(ctx, goplsPath, "-mode=stdio")
 	cmd.Dir = workDir
 
-	stdin, err := cmd.StdinPipe()
+	// Create pipes for LSP communication
+	// Note: These would be used for full LSP protocol implementation
+	_, err = cmd.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stdin pipe: %w", err)
 	}
 
-	stdout, err := cmd.StdoutPipe()
+	_, err = cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 
-	stderr, err := cmd.StderrPipe()
+	_, err = cmd.StderrPipe()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
@@ -128,11 +130,13 @@ func NewGoplsClient(ctx context.Context, workDir string) (*GoplsClient, error) {
 		return nil, fmt.Errorf("failed to start gopls: %w", err)
 	}
 
+	// Return client with process handle
+	// Full LSP protocol implementation would use the pipes for JSON-RPC communication
 	return &GoplsClient{
 		cmd:    cmd,
-		stdin:  stdin.(*os.File),
-		stdout: stdout.(*os.File),
-		stderr: stderr.(*os.File),
+		stdin:  nil, // Placeholder for future LSP protocol implementation
+		stdout: nil,
+		stderr: nil,
 	}, nil
 }
 
@@ -451,9 +455,10 @@ func (lsp *AxonLSP) validateAxonRules(graph *AxonGraph) []Diagnostic {
 	return diagnostics
 }
 
-// isTypeCompatible checks if two Go types are compatible
+// isTypeCompatible checks if two Go types are compatible for assignment
+// This implements basic Go type compatibility rules
 func (lsp *AxonLSP) isTypeCompatible(fromType, toType string) bool {
-	// Any type is compatible with anything
+	// Any type is compatible with anything (interface{} semantics)
 	if fromType == "any" || toType == "any" {
 		return true
 	}
@@ -468,8 +473,28 @@ func (lsp *AxonLSP) isTypeCompatible(fromType, toType string) bool {
 		return true
 	}
 	
-	// TODO: Add more sophisticated type compatibility checking
-	// This could use gopls's type information
+	// Slice of bytes can be converted to string
+	if fromType == "[]byte" && toType == "string" {
+		return true // Explicit conversion allowed
+	}
+	
+	// String can be converted to slice of bytes
+	if fromType == "string" && toType == "[]byte" {
+		return true // Explicit conversion allowed
+	}
+	
+	// error interface is compatible with error implementations
+	if toType == "error" {
+		return true // Any type can potentially implement error
+	}
+	
+	// TODO: Add more sophisticated type compatibility checking:
+	// - Numeric type conversions (int to int64, etc.)
+	// - Interface implementation checking
+	// - Struct field compatibility
+	// - Pointer compatibility
+	// - Channel direction compatibility
+	// This could use gopls's type information for full accuracy
 	
 	return false
 }
