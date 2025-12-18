@@ -6,20 +6,32 @@
   import EndNode from './nodes/EndNode.svelte';
   import ConstantNode from './nodes/ConstantNode.svelte';
   import FunctionNode from './nodes/FunctionNode.svelte';
+  import Console from './Console.svelte';
+  import CodePreview from './CodePreview.svelte';
+  
+  // Console and Code Preview refs
+  let consoleRef;
+  let codePreviewRef;
   
   // Dynamic import of Wails functions
   let wailsAvailable = false;
-  let OpenFile, SaveFile;
+  let OpenFile, SaveFile, ValidateGraph, GenerateGoCode, BuildGraph, RunGraph;
   
   // Try to load Wails runtime
   (async () => {
     try {
-      const { OpenFile: of, SaveFile: sf } = await import('../../wailsjs/go/main/App.js');
-      OpenFile = of;
-      SaveFile = sf;
+      const wailsModule = await import('../../wailsjs/go/main/App.js');
+      OpenFile = wailsModule.OpenFile;
+      SaveFile = wailsModule.SaveFile;
+      ValidateGraph = wailsModule.ValidateGraph;
+      GenerateGoCode = wailsModule.GenerateGoCode;
+      BuildGraph = wailsModule.BuildGraph;
+      RunGraph = wailsModule.RunGraph;
       wailsAvailable = true;
+      consoleRef?.addMessage('Axon Editor initialized with LSP support', 'success');
     } catch (e) {
       console.warn('Wails runtime not available');
+      consoleRef?.addMessage('Running in browser mode - file operations disabled', 'warning');
     }
   })();
 
@@ -201,32 +213,147 @@
   // Open file
   async function handleOpen() {
     if (!wailsAvailable || !OpenFile) {
-      alert('File operations are not available. Please run in Wails desktop mode.');
+      consoleRef?.addMessage('File operations not available in browser mode', 'error');
       return;
     }
     try {
+      consoleRef?.addMessage('Opening file...', 'info');
       const jsonData = await OpenFile();
       const axonGraph = JSON.parse(jsonData);
       axonToFlow(axonGraph);
+      consoleRef?.addMessage(`Graph "${axonGraph.name}" loaded successfully`, 'success');
+      
+      // Validate on load
+      await validateCurrentGraph();
     } catch (err) {
       console.error('Failed to open file:', err);
-      alert('Failed to open file: ' + err.message);
+      consoleRef?.addMessage('Failed to open file: ' + err.message, 'error');
     }
   }
 
   // Save file
   async function handleSave() {
     if (!wailsAvailable || !SaveFile) {
-      alert('File operations are not available. Please run in Wails desktop mode.');
+      consoleRef?.addMessage('File operations not available in browser mode', 'error');
       return;
     }
     try {
       const axonGraph = flowToAxon(nodes, edges);
       const jsonData = JSON.stringify(axonGraph, null, 2);
       await SaveFile(jsonData);
+      consoleRef?.addMessage(`Graph "${axonGraph.name}" saved successfully`, 'success');
     } catch (err) {
       console.error('Failed to save file:', err);
-      alert('Failed to save file: ' + err.message);
+      consoleRef?.addMessage('Failed to save file: ' + err.message, 'error');
+    }
+  }
+  
+  // Validate graph
+  async function validateCurrentGraph() {
+    if (!wailsAvailable || !ValidateGraph) {
+      consoleRef?.addMessage('Validation not available', 'warning');
+      return;
+    }
+    try {
+      const axonGraph = flowToAxon(nodes, edges);
+      const jsonData = JSON.stringify(axonGraph);
+      consoleRef?.addMessage('Validating graph...', 'info');
+      
+      const diagnostics = await ValidateGraph(jsonData);
+      
+      if (!diagnostics || diagnostics.length === 0) {
+        consoleRef?.addMessage('✓ Graph validation passed - no errors found', 'success');
+      } else {
+        consoleRef?.addMessage(`Found ${diagnostics.length} issue(s):`, 'warning');
+        diagnostics.forEach(diag => {
+          const severity = diag.severity || 'info';
+          consoleRef?.addMessage(`  ${diag.message} [${diag.code || 'validation'}]`, severity);
+        });
+      }
+    } catch (err) {
+      console.error('Validation failed:', err);
+      consoleRef?.addMessage('Validation failed: ' + err.message, 'error');
+    }
+  }
+  
+  // Preview generated code
+  async function handlePreviewCode() {
+    if (!wailsAvailable || !GenerateGoCode) {
+      consoleRef?.addMessage('Code generation not available', 'error');
+      return;
+    }
+    try {
+      const axonGraph = flowToAxon(nodes, edges);
+      const jsonData = JSON.stringify(axonGraph);
+      
+      codePreviewRef?.setGenerating(true);
+      codePreviewRef?.show();
+      consoleRef?.addMessage('Generating Go code...', 'info');
+      
+      const goCode = await GenerateGoCode(jsonData);
+      
+      codePreviewRef?.setCode(goCode);
+      codePreviewRef?.setGenerating(false);
+      consoleRef?.addMessage('Code generated successfully', 'success');
+    } catch (err) {
+      console.error('Code generation failed:', err);
+      codePreviewRef?.setGenerating(false);
+      consoleRef?.addMessage('Code generation failed: ' + err.message, 'error');
+    }
+  }
+  
+  // Build graph
+  async function handleBuild() {
+    if (!wailsAvailable || !BuildGraph) {
+      consoleRef?.addMessage('Build not available', 'error');
+      return;
+    }
+    try {
+      const axonGraph = flowToAxon(nodes, edges);
+      const jsonData = JSON.stringify(axonGraph);
+      
+      consoleRef?.addMessage('Building graph with Axon transpiler...', 'info');
+      
+      const buildOutput = await BuildGraph(jsonData);
+      
+      consoleRef?.addMessage('Build output:', 'info');
+      buildOutput.split('\n').forEach(line => {
+        if (line.trim()) {
+          consoleRef?.addMessage(line, 'output');
+        }
+      });
+    } catch (err) {
+      console.error('Build failed:', err);
+      consoleRef?.addMessage('Build failed: ' + err.message, 'error');
+      if (err.message.includes('Axon CLI not found')) {
+        consoleRef?.addMessage('Install Axon CLI: go install github.com/Advik-B/Axon@latest', 'info');
+      }
+    }
+  }
+  
+  // Run graph
+  async function handleRun() {
+    if (!wailsAvailable || !RunGraph) {
+      consoleRef?.addMessage('Run not available', 'error');
+      return;
+    }
+    try {
+      const axonGraph = flowToAxon(nodes, edges);
+      const jsonData = JSON.stringify(axonGraph);
+      
+      consoleRef?.addMessage('Running graph...', 'info');
+      
+      const runOutput = await RunGraph(jsonData);
+      
+      consoleRef?.addMessage('Execution output:', 'info');
+      runOutput.split('\n').forEach(line => {
+        if (line.trim()) {
+          consoleRef?.addMessage(line, 'output');
+        }
+      });
+    } catch (err) {
+      console.error('Run failed:', err);
+      consoleRef?.addMessage('Run failed: ' + err.message, 'error');
     }
   }
 
@@ -314,17 +441,22 @@
       <span class="file-name">{fileName}</span>
     </div>
     <div class="toolbar-center">
-      <button on:click={handleNew}>New</button>
-      <button on:click={handleOpen}>Open</button>
-      <button on:click={handleSave}>Save</button>
+      <button onclick={handleNew}>📄 New</button>
+      <button onclick={handleOpen}>📁 Open</button>
+      <button onclick={handleSave}>💾 Save</button>
+      <span class="toolbar-separator"></span>
+      <button onclick={validateCurrentGraph}>✓ Validate</button>
+      <button onclick={handlePreviewCode}>👁️ Preview Code</button>
+      <button onclick={handleBuild}>🔨 Build</button>
+      <button onclick={handleRun}>▶️ Run</button>
     </div>
     <div class="toolbar-right">
       <div class="dropdown">
         <button class="dropdown-btn">Add Node ▼</button>
         <div class="dropdown-content">
-          <button on:click={() => handleAddNode('CONSTANT')}>Constant</button>
-          <button on:click={() => handleAddNode('FUNCTION')}>Function</button>
-          <button on:click={() => handleAddNode('OPERATOR')}>Operator</button>
+          <button onclick={() => handleAddNode('CONSTANT')}>Constant</button>
+          <button onclick={() => handleAddNode('FUNCTION')}>Function</button>
+          <button onclick={() => handleAddNode('OPERATOR')}>Operator</button>
         </div>
       </div>
     </div>
@@ -336,8 +468,8 @@
       {edges}
       {nodeTypes}
       {snapGrid}
-      on:connect={onConnect}
-      on:nodedragstop={onNodeDragStop}
+      onconnect={onConnect}
+      onnodedragstop={onNodeDragStop}
       fitView
     >
       <Controls />
@@ -371,6 +503,12 @@
     </div>
   </div>
 </div>
+
+<!-- Console Component -->
+<Console bind:this={consoleRef} />
+
+<!-- Code Preview Component -->
+<CodePreview bind:this={codePreviewRef} />
 
 <style>
   .graph-container {
@@ -414,6 +552,14 @@
   .toolbar-center, .toolbar-right {
     display: flex;
     gap: 0.5rem;
+    align-items: center;
+  }
+  
+  .toolbar-separator {
+    width: 1px;
+    height: 24px;
+    background: #3a3a3a;
+    margin: 0 4px;
   }
 
   button {
