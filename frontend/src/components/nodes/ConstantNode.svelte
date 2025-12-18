@@ -7,108 +7,104 @@
   $: outputs = data.outputs || [];
 </script>
 
-<div class="axon-node constant-node" class:selected>
-  <div class="node-header">
-    <span class="node-type">CONSTANT</span>
+<div class="blueprint-node constant-node" class:selected>
+  <div class="node-title-bar">
+    <span class="node-title">{data.label || 'Constant'}</span>
   </div>
-  <div class="node-body">
-    <div class="node-label">{data.label || 'Constant'}</div>
+  <div class="node-content">
     {#if data.config?.value}
-      <div class="node-value">{data.config.value}</div>
+      <div class="constant-value">{data.config.value}</div>
     {/if}
-  </div>
-  <div class="node-ports">
-    {#each outputs as output, i}
-      <div class="port output-port">
-        <span class="port-name">{output.name}</span>
-        <span class="port-type">{output.type_name}</span>
-        <Handle 
-          type="source" 
-          position={Position.Right} 
-          id={output.name}
-          class="data-handle"
-        />
-      </div>
-    {/each}
+    <div class="node-pins">
+      {#each outputs as output, i}
+        <div class="pin-row output-pin">
+          <span class="pin-label">{output.name}</span>
+          <span class="pin-type">{output.type_name}</span>
+          <Handle 
+            type="source" 
+            position={Position.Right} 
+            id={output.name}
+            class="data-handle"
+          />
+        </div>
+      {/each}
+    </div>
   </div>
 </div>
 
 <style>
-  .axon-node {
-    padding: 10px;
-    border-radius: 8px;
-    border: 2px solid #4a9eff;
-    background: #2a2a2a;
-    min-width: 150px;
+  .blueprint-node {
+    background: #1a1a1a;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+    min-width: 160px;
+  }
+
+  .blueprint-node.selected {
+    box-shadow: 0 0 0 2px #ffa500, 0 2px 8px rgba(0, 0, 0, 0.5);
+  }
+
+  .constant-node .node-title-bar {
+    background: linear-gradient(to bottom, #5d2d7f 0%, #3d1f5f 100%);
+    border-bottom: 1px solid #7d3d9f;
+  }
+
+  .node-title-bar {
+    padding: 6px 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
     color: #ffffff;
-  }
-
-  .axon-node.selected {
-    border-color: #ffaa00;
-    box-shadow: 0 0 10px rgba(255, 170, 0, 0.5);
-  }
-
-  .constant-node {
-    border-color: #9c27b0;
-    background: linear-gradient(135deg, #2a1a3a 0%, #2a2a2a 100%);
-  }
-
-  .node-header {
-    font-size: 0.7rem;
-    font-weight: bold;
-    color: #9c27b0;
-    margin-bottom: 5px;
     text-align: center;
+    letter-spacing: 0.3px;
   }
 
-  .node-body {
+  .node-content {
+    padding: 8px 12px;
+  }
+
+  .constant-value {
+    font-size: 1rem;
+    color: #e0e0e0;
+    font-family: 'Consolas', 'Courier New', monospace;
     text-align: center;
+    padding: 4px 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 2px;
     margin-bottom: 8px;
   }
 
-  .node-label {
-    font-size: 0.9rem;
-    color: #ffffff;
-    font-weight: 600;
-  }
-
-  .node-value {
-    font-size: 0.8rem;
-    color: #aaaaaa;
-    margin-top: 4px;
-    font-family: monospace;
-  }
-
-  .node-ports {
+  .node-pins {
     display: flex;
     flex-direction: column;
     gap: 4px;
   }
 
-  .port {
+  .pin-row {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
-    gap: 4px;
+    gap: 6px;
     position: relative;
-    padding-right: 12px;
+    padding-right: 16px;
+    justify-content: flex-end;
   }
 
-  .port-name {
+  .pin-label {
+    font-size: 0.8rem;
+    color: #d0d0d0;
+  }
+
+  .pin-type {
     font-size: 0.75rem;
-    color: #cccccc;
-  }
-
-  .port-type {
-    font-size: 0.7rem;
     color: #888888;
-    font-family: monospace;
+    font-family: 'Consolas', monospace;
   }
 
   :global(.data-handle) {
-    width: 10px;
-    height: 10px;
-    background: #4a9eff;
+    width: 12px;
+    height: 12px;
+    background: #1b9e77;
     border: 2px solid #ffffff;
+    border-radius: 50%;
   }
 </style>
