@@ -6,20 +6,38 @@
   import EndNode from './nodes/EndNode.svelte';
   import ConstantNode from './nodes/ConstantNode.svelte';
   import FunctionNode from './nodes/FunctionNode.svelte';
+  import Console from './Console.svelte';
+  import CodePreview from './CodePreview.svelte';
+  import PropertiesPanel from './PropertiesPanel.svelte';
+  import KeyboardShortcuts from './KeyboardShortcuts.svelte';
+  import ContextMenu from './ContextMenu.svelte';
+  
+  // Console and Code Preview refs
+  let consoleRef;
+  let codePreviewRef;
+  let propertiesPanelRef;
+  let keyboardShortcutsRef;
+  let contextMenuRef;
   
   // Dynamic import of Wails functions
   let wailsAvailable = false;
-  let OpenFile, SaveFile;
+  let OpenFile, SaveFile, ValidateGraph, GenerateGoCode, BuildGraph, RunGraph;
   
   // Try to load Wails runtime
   (async () => {
     try {
-      const { OpenFile: of, SaveFile: sf } = await import('../../wailsjs/go/main/App.js');
-      OpenFile = of;
-      SaveFile = sf;
+      const wailsModule = await import('../../wailsjs/go/main/App.js');
+      OpenFile = wailsModule.OpenFile;
+      SaveFile = wailsModule.SaveFile;
+      ValidateGraph = wailsModule.ValidateGraph;
+      GenerateGoCode = wailsModule.GenerateGoCode;
+      BuildGraph = wailsModule.BuildGraph;
+      RunGraph = wailsModule.RunGraph;
       wailsAvailable = true;
+      consoleRef?.addMessage('Axon Editor initialized with LSP support', 'success');
     } catch (e) {
       console.warn('Wails runtime not available');
+      consoleRef?.addMessage('Running in browser mode - file operations disabled', 'warning');
     }
   })();
 
@@ -172,7 +190,26 @@
 
   // Handle new connections
   function onConnect(connection) {
+    // Validation 1: Node cannot connect to itself
+    if (connection.source === connection.target) {
+      consoleRef?.addMessage('Error: A node cannot connect to itself', 'error');
+      return;
+    }
+    
     const isExecEdge = connection.sourceHandle?.includes('exec') || connection.targetHandle?.includes('exec');
+    
+    // Validation 2: For exec connections, right exec must connect to left exec of ANOTHER node
+    if (isExecEdge) {
+      // Source handle should be 'exec' or 'exec-out' (right side)
+      // Target handle should be 'exec' or 'exec-in' (left side)
+      const isSourceRight = connection.sourceHandle === 'exec' || connection.sourceHandle === 'exec-out';
+      const isTargetLeft = connection.targetHandle === 'exec' || connection.targetHandle === 'exec-in';
+      
+      if (!isSourceRight || !isTargetLeft) {
+        consoleRef?.addMessage('Error: Execution flow must go from right exec connector to left exec connector of another node', 'error');
+        return;
+      }
+    }
     
     const newEdge = {
       id: isExecEdge 
@@ -191,42 +228,226 @@
       },
     };
     edges = [...edges, newEdge];
+    consoleRef?.addMessage('Connection created successfully', 'info');
   }
 
-  // Handle node drag
+  // Handle node drag - update positions in nodes array
   function onNodeDragStop(event) {
-    // Position updates are handled automatically by Svelte Flow
+    // Update node positions after drag
+    if (event.detail && event.detail.node) {
+      const draggedNode = event.detail.node;
+      nodes = nodes.map(n => {
+        if (n.id === draggedNode.id) {
+          return {
+            ...n,
+            position: draggedNode.position
+          };
+        }
+        return n;
+      });
+    }
+  }
+  
+  // Handle node selection
+  function onNodeClick(event) {
+    if (event.detail && event.detail.node) {
+      const node = event.detail.node;
+      propertiesPanelRef?.setNode(node);
+      consoleRef?.addMessage(`Selected node: ${node.data.label} (${node.data.type})`, 'info');
+    }
+  }
+  
+  // Keyboard shortcuts handler
+  function handleKeyDown(event) {
+    // Ctrl+S - Save
+    if (event.ctrlKey && event.key === 's') {
+      event.preventDefault();
+      handleSave();
+    }
+    // Ctrl+O - Open
+    else if (event.ctrlKey && event.key === 'o') {
+      event.preventDefault();
+      handleOpen();
+    }
+    // Ctrl+N - New
+    else if (event.ctrlKey && event.key === 'n') {
+      event.preventDefault();
+      handleNew();
+    }
+    // F5 - Build
+    else if (event.key === 'F5' && !event.ctrlKey) {
+      event.preventDefault();
+      handleBuild();
+    }
+    // Ctrl+F5 - Run
+    else if (event.ctrlKey && event.key === 'F5') {
+      event.preventDefault();
+      handleRun();
+    }
+    // F7 - Validate
+    else if (event.key === 'F7') {
+      event.preventDefault();
+      validateCurrentGraph();
+    }
+    // Ctrl+P - Preview code
+    else if (event.ctrlKey && event.key === 'p') {
+      event.preventDefault();
+      handlePreviewCode();
+    }
+    // F1 - Show help
+    else if (event.key === 'F1') {
+      event.preventDefault();
+      keyboardShortcutsRef?.show();
+    }
+    // Esc - Close dialogs
+    else if (event.key === 'Escape') {
+      codePreviewRef?.hide();
+      keyboardShortcutsRef?.hide();
+      propertiesPanelRef?.hide();
+    }
   }
 
   // Open file
   async function handleOpen() {
     if (!wailsAvailable || !OpenFile) {
-      alert('File operations are not available. Please run in Wails desktop mode.');
+      consoleRef?.addMessage('File operations not available in browser mode', 'error');
       return;
     }
     try {
+      consoleRef?.addMessage('Opening file...', 'info');
       const jsonData = await OpenFile();
       const axonGraph = JSON.parse(jsonData);
       axonToFlow(axonGraph);
+      consoleRef?.addMessage(`Graph "${axonGraph.name}" loaded successfully`, 'success');
+      
+      // Validate on load
+      await validateCurrentGraph();
     } catch (err) {
       console.error('Failed to open file:', err);
-      alert('Failed to open file: ' + err.message);
+      consoleRef?.addMessage('Failed to open file: ' + err.message, 'error');
     }
   }
 
   // Save file
   async function handleSave() {
     if (!wailsAvailable || !SaveFile) {
-      alert('File operations are not available. Please run in Wails desktop mode.');
+      consoleRef?.addMessage('File operations not available in browser mode', 'error');
       return;
     }
     try {
       const axonGraph = flowToAxon(nodes, edges);
       const jsonData = JSON.stringify(axonGraph, null, 2);
       await SaveFile(jsonData);
+      consoleRef?.addMessage(`Graph "${axonGraph.name}" saved successfully`, 'success');
     } catch (err) {
       console.error('Failed to save file:', err);
-      alert('Failed to save file: ' + err.message);
+      consoleRef?.addMessage('Failed to save file: ' + err.message, 'error');
+    }
+  }
+  
+  // Validate graph
+  async function validateCurrentGraph() {
+    if (!wailsAvailable || !ValidateGraph) {
+      consoleRef?.addMessage('Validation not available', 'warning');
+      return;
+    }
+    try {
+      const axonGraph = flowToAxon(nodes, edges);
+      const jsonData = JSON.stringify(axonGraph);
+      consoleRef?.addMessage('Validating graph...', 'info');
+      
+      const diagnostics = await ValidateGraph(jsonData);
+      
+      if (!diagnostics || diagnostics.length === 0) {
+        consoleRef?.addMessage('✓ Graph validation passed - no errors found', 'success');
+      } else {
+        consoleRef?.addMessage(`Found ${diagnostics.length} issue(s):`, 'warning');
+        diagnostics.forEach(diag => {
+          const severity = diag.severity || 'info';
+          consoleRef?.addMessage(`  ${diag.message} [${diag.code || 'validation'}]`, severity);
+        });
+      }
+    } catch (err) {
+      console.error('Validation failed:', err);
+      consoleRef?.addMessage('Validation failed: ' + err.message, 'error');
+    }
+  }
+  
+  // Preview generated code
+  async function handlePreviewCode() {
+    if (!wailsAvailable || !GenerateGoCode) {
+      consoleRef?.addMessage('Code generation not available', 'error');
+      return;
+    }
+    try {
+      const axonGraph = flowToAxon(nodes, edges);
+      const jsonData = JSON.stringify(axonGraph);
+      
+      codePreviewRef?.setGenerating(true);
+      codePreviewRef?.show();
+      consoleRef?.addMessage('Generating Go code...', 'info');
+      
+      const goCode = await GenerateGoCode(jsonData);
+      
+      codePreviewRef?.setCode(goCode);
+      codePreviewRef?.setGenerating(false);
+      consoleRef?.addMessage('Code generated successfully', 'success');
+    } catch (err) {
+      console.error('Code generation failed:', err);
+      codePreviewRef?.setGenerating(false);
+      consoleRef?.addMessage('Code generation failed: ' + err.message, 'error');
+    }
+  }
+  
+  // Build graph
+  async function handleBuild() {
+    if (!wailsAvailable || !BuildGraph) {
+      consoleRef?.addMessage('Build not available', 'error');
+      return;
+    }
+    try {
+      const axonGraph = flowToAxon(nodes, edges);
+      const jsonData = JSON.stringify(axonGraph);
+      
+      consoleRef?.addMessage('Building graph with Axon transpiler...', 'info');
+      
+      const buildOutput = await BuildGraph(jsonData);
+      
+      consoleRef?.addMessage('Build output:', 'info');
+      buildOutput.split('\n').forEach(line => {
+        if (line.trim()) {
+          consoleRef?.addMessage(line, 'output');
+        }
+      });
+    } catch (err) {
+      console.error('Build failed:', err);
+      consoleRef?.addMessage('Build failed: ' + err.message, 'error');
+    }
+  }
+  
+  // Run graph
+  async function handleRun() {
+    if (!wailsAvailable || !RunGraph) {
+      consoleRef?.addMessage('Run not available', 'error');
+      return;
+    }
+    try {
+      const axonGraph = flowToAxon(nodes, edges);
+      const jsonData = JSON.stringify(axonGraph);
+      
+      consoleRef?.addMessage('Running graph...', 'info');
+      
+      const runOutput = await RunGraph(jsonData);
+      
+      consoleRef?.addMessage('Execution output:', 'info');
+      runOutput.split('\n').forEach(line => {
+        if (line.trim()) {
+          consoleRef?.addMessage(line, 'output');
+        }
+      });
+    } catch (err) {
+      console.error('Run failed:', err);
+      consoleRef?.addMessage('Run failed: ' + err.message, 'error');
     }
   }
 
@@ -254,6 +475,81 @@
       exec_edges: []
     };
     axonToFlow(newGraph);
+  }
+  
+  // Context menu handlers
+  function handlePaneContextMenu(event) {
+    const e = event.detail?.event || event;
+    if (e.preventDefault) e.preventDefault();
+    
+    const clientX = e.clientX || 0;
+    const clientY = e.clientY || 0;
+    
+    const menuItems = [
+      { icon: '➕', label: 'Add Constant', action: () => handleAddNode('CONSTANT') },
+      { icon: '⚙️', label: 'Add Function', action: () => handleAddNode('FUNCTION') },
+      { icon: '🔢', label: 'Add Operator', action: () => handleAddNode('OPERATOR') },
+      { separator: true },
+      { icon: '📄', label: 'New Graph', action: handleNew, shortcut: 'Ctrl+N' },
+      { icon: '📁', label: 'Open', action: handleOpen, shortcut: 'Ctrl+O' },
+      { icon: '💾', label: 'Save', action: handleSave, shortcut: 'Ctrl+S' },
+      { separator: true },
+      { icon: '✓', label: 'Validate', action: validateCurrentGraph, shortcut: 'F7' },
+      { icon: '🔨', label: 'Build', action: handleBuild, shortcut: 'F5' },
+      { icon: '▶️', label: 'Run', action: handleRun, shortcut: 'Ctrl+F5' },
+    ];
+    contextMenuRef?.show(clientX, clientY, menuItems);
+  }
+  
+  function handleNodeContextMenu(event) {
+    const e = event.detail?.event || event;
+    if (e.preventDefault) e.preventDefault();
+    
+    const node = event.detail?.node || event.node;
+    if (!node) return;
+    
+    const clientX = e.clientX || 0;
+    const clientY = e.clientY || 0;
+    
+    // Don't allow deleting START or END nodes
+    const canDelete = node.data?.type !== 'START' && node.data?.type !== 'END';
+    
+    const menuItems = [
+      { icon: '⚙️', label: 'Properties', action: (n) => propertiesPanelRef?.setNode(n) },
+      { icon: '📋', label: 'Duplicate', action: (n) => duplicateNode(n) },
+      { separator: true },
+      { icon: '🗑️', label: 'Delete', action: (n) => deleteNode(n), danger: true, disabled: !canDelete },
+    ];
+    contextMenuRef?.show(clientX, clientY, menuItems, { node });
+  }
+  
+  function duplicateNode(node) {
+    if (!node) return;
+    const newNodeId = `node-${Date.now()}`;
+    const newNode = {
+      ...node,
+      id: newNodeId,
+      position: { x: node.position.x + 50, y: node.position.y + 50 },
+      data: { ...node.data }
+    };
+    nodes = [...nodes, newNode];
+    consoleRef?.addMessage(`Node duplicated: ${node.data.label}`, 'info');
+  }
+  
+  function deleteNode(node) {
+    if (!node) return;
+    if (node.data.type === 'START' || node.data.type === 'END') {
+      consoleRef?.addMessage('Cannot delete START or END nodes', 'error');
+      return;
+    }
+    
+    // Remove node
+    nodes = nodes.filter(n => n.id !== node.id);
+    
+    // Remove connected edges
+    edges = edges.filter(e => e.source !== node.id && e.target !== node.id);
+    
+    consoleRef?.addMessage(`Node deleted: ${node.data.label}`, 'info');
   }
 
   // Add node
@@ -307,24 +603,32 @@
   handleNew();
 </script>
 
-<div class="graph-container">
+<div class="graph-container" onkeydown={handleKeyDown} tabindex="0">
   <div class="toolbar">
     <div class="toolbar-left">
       <h1>Axon Editor</h1>
       <span class="file-name">{fileName}</span>
     </div>
     <div class="toolbar-center">
-      <button on:click={handleNew}>New</button>
-      <button on:click={handleOpen}>Open</button>
-      <button on:click={handleSave}>Save</button>
+      <button onclick={handleNew}>📄 New</button>
+      <button onclick={handleOpen}>📁 Open</button>
+      <button onclick={handleSave}>💾 Save</button>
+      <span class="toolbar-separator"></span>
+      <button onclick={validateCurrentGraph}>✓ Validate</button>
+      <button onclick={handlePreviewCode}>👁️ Preview Code</button>
+      <button onclick={handleBuild}>🔨 Build</button>
+      <button onclick={handleRun}>▶️ Run</button>
     </div>
     <div class="toolbar-right">
+      <button onclick={() => keyboardShortcutsRef?.show()} class="help-btn" title="Keyboard Shortcuts (F1)">
+        ⌨️
+      </button>
       <div class="dropdown">
         <button class="dropdown-btn">Add Node ▼</button>
         <div class="dropdown-content">
-          <button on:click={() => handleAddNode('CONSTANT')}>Constant</button>
-          <button on:click={() => handleAddNode('FUNCTION')}>Function</button>
-          <button on:click={() => handleAddNode('OPERATOR')}>Operator</button>
+          <button onclick={() => handleAddNode('CONSTANT')}>Constant</button>
+          <button onclick={() => handleAddNode('FUNCTION')}>Function</button>
+          <button onclick={() => handleAddNode('OPERATOR')}>Operator</button>
         </div>
       </div>
     </div>
@@ -336,8 +640,11 @@
       {edges}
       {nodeTypes}
       {snapGrid}
-      on:connect={onConnect}
-      on:nodedragstop={onNodeDragStop}
+      onconnect={onConnect}
+      onnodedragstop={onNodeDragStop}
+      onnodeclick={onNodeClick}
+      onnodecontextmenu={handleNodeContextMenu}
+      onpanecontextmenu={handlePaneContextMenu}
       fitView
     >
       <Controls />
@@ -372,6 +679,21 @@
   </div>
 </div>
 
+<!-- Console Component -->
+<Console bind:this={consoleRef} />
+
+<!-- Code Preview Component -->
+<CodePreview bind:this={codePreviewRef} />
+
+<!-- Properties Panel Component -->
+<PropertiesPanel bind:this={propertiesPanelRef} />
+
+<!-- Keyboard Shortcuts Help -->
+<KeyboardShortcuts bind:this={keyboardShortcutsRef} />
+
+<!-- Context Menu -->
+<ContextMenu bind:this={contextMenuRef} />
+
 <style>
   .graph-container {
     width: 100%;
@@ -379,6 +701,11 @@
     display: flex;
     flex-direction: column;
     background: #0d0d0d;
+    outline: none; /* Remove focus outline */
+  }
+  
+  .graph-container:focus {
+    outline: none;
   }
 
   .toolbar {
@@ -414,6 +741,14 @@
   .toolbar-center, .toolbar-right {
     display: flex;
     gap: 0.5rem;
+    align-items: center;
+  }
+  
+  .toolbar-separator {
+    width: 1px;
+    height: 24px;
+    background: #3a3a3a;
+    margin: 0 4px;
   }
 
   button {
@@ -488,6 +823,18 @@
 
   .dropdown:hover .dropdown-content {
     display: block;
+  }
+  
+  .help-btn {
+    padding: 0.5rem;
+    width: 38px;
+    background: linear-gradient(to bottom, #7f5f2d 0%, #5f4f1d 100%);
+    border-color: #9f7f3d;
+  }
+  
+  .help-btn:hover {
+    background: linear-gradient(to bottom, #8f6f3d 0%, #6f5f2d 100%);
+    border-color: #af8f4d;
   }
 
   .flow-wrapper {

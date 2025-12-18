@@ -1,8 +1,14 @@
 module axon-editor
 
-go 1.23
+go 1.24.4
 
-require github.com/wailsapp/wails/v2 v2.11.0
+toolchain go1.24.11
+
+require (
+	github.com/Advik-B/Axon v0.0.0-20250730222639-df0311deff55
+	github.com/wailsapp/wails/v2 v2.11.0
+	google.golang.org/protobuf v1.36.6
+)
 
 require (
 	github.com/bep/debounce v1.2.1 // indirect
@@ -24,6 +30,7 @@ require (
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/samber/lo v1.49.1 // indirect
 	github.com/tkrajina/go-reflector v0.5.8 // indirect
+	github.com/ulikunitz/xz v0.5.12 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/wailsapp/go-webview2 v1.0.22 // indirect
@@ -32,4 +39,5 @@ require (
 	golang.org/x/net v0.35.0 // indirect
 	golang.org/x/sys v0.30.0 // indirect
 	golang.org/x/text v0.22.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

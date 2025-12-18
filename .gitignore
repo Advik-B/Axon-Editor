@@ -1,3 +1,7 @@
 build/bin
+build/tmp
 node_modules
 frontend/dist
+tmp/
+*.ax
+!examples/*.ax
