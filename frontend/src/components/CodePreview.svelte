@@ -1,86 +1,121 @@
 <script>
-  // Code Preview component for displaying generated Go code with syntax highlighting
+  import { onMount, onDestroy } from 'svelte';
+  import * as monaco from 'monaco-editor';
+  
+  // Monaco Editor instance
+  let editor;
+  let editorContainer;
   let code = $state('');
   let isVisible = $state(false);
   let isGenerating = $state(false);
   
   export function setCode(newCode) {
     code = newCode;
+    if (editor && newCode) {
+      editor.setValue(newCode);
+    }
   }
   
   export function show() {
     isVisible = true;
+    // Initialize editor after DOM is ready
+    setTimeout(() => initializeEditor(), 50);
   }
   
   export function hide() {
     isVisible = false;
+    if (editor) {
+      editor.dispose();
+      editor = null;
+    }
   }
   
   export function toggle() {
-    isVisible = !isVisible;
+    if (isVisible) {
+      hide();
+    } else {
+      show();
+    }
   }
   
   export function setGenerating(value) {
     isGenerating = value;
   }
   
-  function copyToClipboard() {
-    navigator.clipboard.writeText(code).then(() => {
-      alert('Code copied to clipboard!');
-    }).catch(err => {
-      console.error('Failed to copy:', err);
+  function initializeEditor() {
+    if (!editorContainer || editor) return;
+    
+    // Configure Monaco Editor
+    editor = monaco.editor.create(editorContainer, {
+      value: code || '',
+      language: 'go',
+      theme: 'vs-dark',
+      readOnly: true,
+      automaticLayout: true,
+      minimap: {
+        enabled: true
+      },
+      scrollBeyondLastLine: false,
+      fontSize: 13,
+      fontFamily: "'Consolas', 'Monaco', 'Courier New', monospace",
+      lineNumbers: 'on',
+      renderWhitespace: 'selection',
+      folding: true,
+      bracketPairColorization: {
+        enabled: true
+      },
+      stickyScroll: {
+        enabled: true
+      }
     });
   }
   
-  // Simple syntax highlighting for Go code
-  function highlightGo(code) {
-    if (!code) return '';
-    
-    // Keywords
-    let highlighted = code.replace(
-      /\b(package|import|func|var|const|type|struct|interface|return|if|else|for|range|switch|case|default|break|continue|go|defer|chan|select|map)\b/g,
-      '<span class="keyword">$1</span>'
-    );
-    
-    // Types
-    highlighted = highlighted.replace(
-      /\b(int|int8|int16|int32|int64|uint|uint8|uint16|uint32|uint64|float32|float64|string|bool|byte|rune|error|interface{}|any)\b/g,
-      '<span class="type">$1</span>'
-    );
-    
-    // Strings
-    highlighted = highlighted.replace(
-      /"([^"\\]|\\.)*"/g,
-      '<span class="string">$&</span>'
-    );
-    
-    // Comments
-    highlighted = highlighted.replace(
-      /\/\/.*/g,
-      '<span class="comment">$&</span>'
-    );
-    
-    // Function calls
-    highlighted = highlighted.replace(
-      /\b([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/g,
-      '<span class="function">$1</span>('
-    );
-    
-    return highlighted;
+  function copyToClipboard() {
+    if (editor) {
+      const value = editor.getValue();
+      navigator.clipboard.writeText(value).then(() => {
+        alert('Code copied to clipboard!');
+      }).catch(err => {
+        console.error('Failed to copy:', err);
+      });
+    }
   }
   
-  const highlightedCode = $derived(highlightGo(code));
+  function downloadCode() {
+    if (editor) {
+      const value = editor.getValue();
+      const blob = new Blob([value], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'generated.go';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  }
+  
+  onDestroy(() => {
+    if (editor) {
+      editor.dispose();
+    }
+  });
 </script>
 
 {#if isVisible}
-  <div class="code-preview-overlay" onclick={() => hide()}>
-    <div class="code-preview-panel" onclick={(e) => e.stopPropagation()}>
+  <div class="code-preview-overlay" onclick={() => hide()} role="dialog" aria-modal="true" onkeydown={(e) => e.key === 'Escape' && hide()}>
+    <div class="code-preview-panel" onclick={(e) => e.stopPropagation()} role="document">
       <div class="code-preview-header">
         <div class="code-preview-title">
           <span class="preview-icon">📄</span>
           <span>Generated Go Code</span>
+          <span class="monaco-badge">Monaco Editor</span>
         </div>
         <div class="code-preview-actions">
+          <button onclick={() => downloadCode()} class="preview-btn" title="Download code">
+            💾 Download
+          </button>
           <button onclick={() => copyToClipboard()} class="preview-btn" title="Copy to clipboard">
             📋 Copy
           </button>
@@ -97,7 +132,7 @@
             <p>Generating code...</p>
           </div>
         {:else if code}
-          <pre class="code-block"><code>{@html highlightedCode}</code></pre>
+          <div bind:this={editorContainer} class="monaco-container"></div>
         {:else}
           <div class="code-empty">
             <p>No code generated yet</p>
@@ -108,6 +143,7 @@
       
       <div class="code-preview-footer">
         <span class="code-stats">{code.split('\n').length} lines</span>
+        <span class="editor-info">Monaco Editor • Go Language Support • Read-only</span>
       </div>
     </div>
   </div>
@@ -138,8 +174,8 @@
     border: 1px solid #3a3a3a;
     border-radius: 8px;
     width: 90%;
-    max-width: 900px;
-    max-height: 80vh;
+    max-width: 1200px;
+    max-height: 85vh;
     display: flex;
     flex-direction: column;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
@@ -180,6 +216,17 @@
     font-size: 18px;
   }
   
+  .monaco-badge {
+    font-size: 10px;
+    background: #007acc;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
   .code-preview-actions {
     display: flex;
     gap: 8px;
@@ -212,9 +259,15 @@
   
   .code-preview-content {
     flex: 1;
-    overflow-y: auto;
-    padding: 16px;
+    overflow: hidden;
     background: #1e1e1e;
+    position: relative;
+  }
+  
+  .monaco-container {
+    width: 100%;
+    height: 100%;
+    min-height: 400px;
   }
   
   .code-loading {
@@ -222,18 +275,18 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 40px;
+    padding: 80px 40px;
     color: #999;
   }
   
   .spinner {
-    width: 40px;
-    height: 40px;
+    width: 50px;
+    height: 50px;
     border: 4px solid #3a3a3a;
-    border-top-color: #4a9eff;
+    border-top-color: #007acc;
     border-radius: 50%;
     animation: spin 1s linear infinite;
-    margin-bottom: 16px;
+    margin-bottom: 20px;
   }
   
   @keyframes spin {
@@ -242,52 +295,18 @@
   
   .code-empty {
     text-align: center;
-    padding: 40px;
+    padding: 80px 40px;
     color: #666;
   }
   
+  .code-empty p {
+    margin: 0 0 8px 0;
+    font-size: 16px;
+  }
+  
   .hint {
-    font-size: 12px;
-    color: #555;
-    margin-top: 8px;
-  }
-  
-  .code-block {
-    margin: 0;
-    padding: 16px;
-    background: #252526;
-    border-radius: 4px;
-    border: 1px solid #3a3a3a;
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
     font-size: 13px;
-    line-height: 1.6;
-    overflow-x: auto;
-  }
-  
-  .code-block code {
-    color: #d4d4d4;
-  }
-  
-  .code-block :global(.keyword) {
-    color: #569cd6;
-    font-weight: 500;
-  }
-  
-  .code-block :global(.type) {
-    color: #4ec9b0;
-  }
-  
-  .code-block :global(.string) {
-    color: #ce9178;
-  }
-  
-  .code-block :global(.comment) {
-    color: #6a9955;
-    font-style: italic;
-  }
-  
-  .code-block :global(.function) {
-    color: #dcdcaa;
+    color: #555;
   }
   
   .code-preview-footer {
@@ -295,6 +314,9 @@
     background: #252526;
     border-top: 1px solid #3a3a3a;
     border-radius: 0 0 8px 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
   }
   
   .code-stats {
@@ -302,34 +324,8 @@
     color: #888;
   }
   
-  /* Scrollbar styling */
-  .code-preview-content::-webkit-scrollbar {
-    width: 10px;
-  }
-  
-  .code-preview-content::-webkit-scrollbar-track {
-    background: #1e1e1e;
-  }
-  
-  .code-preview-content::-webkit-scrollbar-thumb {
-    background: #424242;
-    border-radius: 5px;
-  }
-  
-  .code-preview-content::-webkit-scrollbar-thumb:hover {
-    background: #4e4e4e;
-  }
-  
-  .code-block::-webkit-scrollbar {
-    height: 8px;
-  }
-  
-  .code-block::-webkit-scrollbar-track {
-    background: #252526;
-  }
-  
-  .code-block::-webkit-scrollbar-thumb {
-    background: #424242;
-    border-radius: 4px;
+  .editor-info {
+    font-size: 10px;
+    color: #666;
   }
 </style>
